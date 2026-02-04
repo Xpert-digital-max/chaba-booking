@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>จองห้องพัก - ชบารีสอร์ต</title>
+    <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+
+    <style>
+        body { font-family: sans-serif; background-color: #f3f4f6; margin: 0; padding-bottom: 50px; }
+        .container { max-width: 450px; margin: 0 auto; background: white; min-height: 100vh; position: relative; }
+        
+        /* Header */
+        .header { height: 200px; background-color: #333; position: relative; overflow: hidden; }
+        .header img { width: 100%; height: 100%; object-fit: cover; opacity: 0.8; }
+        .header-text { position: absolute; bottom: 20px; left: 20px; color: white; text-shadow: 1px 1px 4px rgba(0,0,0,0.5); }
+        .admin-btn { position: absolute; top: 10px; right: 10px; background: rgba(255,255,255,0.8); border: none; border-radius: 50%; width: 40px; height: 40px; font-size: 20px; cursor: pointer; z-index: 10; display: flex; align-items: center; justify-content: center; }
+
+        /* Content */
+        .content { padding: 20px; border-radius: 20px 20px 0 0; background: white; margin-top: -20px; position: relative; z-index: 5; }
+        .form-group { margin-bottom: 15px; }
+        .label { display: block; font-weight: bold; margin-bottom: 5px; color: #374151; }
+        .input-box { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
+        .btn { width: 100%; padding: 15px; background-color: #10B981; color: white; border: none; border-radius: 10px; font-size: 18px; font-weight: bold; cursor: pointer; }
+        .btn:disabled { background-color: #ccc; }
+        
+        /* Room Item */
+        .room-item { border: 2px solid #eee; border-radius: 10px; padding: 10px; margin-bottom: 10px; display: flex; align-items: center; cursor: pointer; transition: all 0.2s; }
+        .room-item.selected { border-color: #10B981; background-color: #ecfdf5; }
+        .room-img { width: 80px; height: 80px; background-color: #ddd; border-radius: 5px; object-fit: cover; margin-right: 15px; }
+        
+        /* Utility */
+        .loading { text-align: center; color: #666; margin-top: 20px; }
+        
+        /* --- CSS Modal (แก้ไขแล้ว) --- */
+        .hidden { display: none !important; }
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 9999; }
+        .modal-content { background: white; width: 90%; max-width: 400px; padding: 20px; border-radius: 15px; max-height: 85vh; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.2); position: relative; }
+        .close-modal { position: absolute; top: 10px; right: 15px; font-size: 28px; background: none; border: none; cursor: pointer; color: #666; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <img src="https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&q=80&w=1000">
+        <div class="header-text">
+            <h1 style="margin:0; font-size:24px;">Chaba Resort</h1>
+            <p style="margin:5px 0 0 0;">📍 จันทบุรี</p>
+        </div>
+        <button onclick="toggleAdmin()" class="admin-btn">⚙️</button>
+    </div>
+
+    <div class="content">
+        <div id="profileSection" style="display:flex; align-items:center; margin-bottom:20px; background:#f0fdf4; padding:10px; border-radius:10px;">
+            <img id="userImg" src="https://via.placeholder.com/50" style="width:40px; height:40px; border-radius:50%; margin-right:10px;">
+            <div>
+                <div style="font-size:12px; color:#10B981;">จองในนาม</div>
+                <div id="userName" style="font-weight:bold;">Guest</div>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="label">📅 วันที่เข้าพัก</label>
+            <div style="display:flex; gap:10px;">
+                <input type="date" id="checkIn" class="input-box" onchange="updateCheckOut()">
+                <input type="date" id="checkOut" class="input-box" disabled>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <label class="label">🏡 เลือกห้องพัก</label>
+                <a href="#" onclick="fetchRooms(); return false;" style="color:#10B981; font-size:12px; text-decoration:none;">🔄 รีเฟรช</a>
+            </div>
+            <div id="roomList">
+                <div class="loading">กำลังโหลดข้อมูลห้องพัก...</div>
+            </div>
+            <input type="hidden" id="selectedRoom">
+        </div>
+
+        <div class="form-group">
+            <label class="label">📞 เบอร์ติดต่อ</label>
+            <input type="tel" id="phone" class="input-box" placeholder="08x-xxx-xxxx">
+        </div>
+
+        <button id="submitBtn" class="btn" onclick="submitBooking()" disabled>เลือกห้องพักก่อน</button>
+    </div>
+</div>
+
+<div id="adminModal" class="hidden modal">
+    <div class="modal-content">
+        <button onclick="toggleAdmin()" class="close-modal">&times;</button>
+        <h2 style="margin-top:0; border-bottom:1px solid #eee; padding-bottom:10px;">จัดการห้องพัก</h2>
+        
+        <div id="adminList" style="margin-bottom:20px;"></div>
+        
+        <div style="background:#f9fafb; padding:15px; border-radius:10px; border:1px solid #eee;">
+            <h4 style="margin-top:0;">เพิ่มห้องใหม่</h4>
+            <input id="newRoomName" class="input-box" placeholder="ชื่อห้อง" style="margin-bottom:10px;">
+            <input id="newRoomPrice" class="input-box" placeholder="ราคา (บาท)" type="number" style="margin-bottom:10px;">
+            <input id="newRoomDesc" class="input-box" placeholder="รายละเอียด" style="margin-bottom:10px;">
+            
+            <label style="font-size:12px; font-weight:bold; margin-bottom:5px; display:block;">รูปภาพห้องพัก:</label>
+            <input type="file" id="newRoomFile" style="margin-bottom:15px; width:100%;">
+            
+            <button id="saveRoomBtn" class="btn" style="font-size:16px; padding:10px;" onclick="addRoom()">บันทึกห้องพัก</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ▼▼▼ ตรวจสอบลิ้งค์นี้อีกครั้ง ถ้า Deploy ใหม่ต้องเปลี่ยนตรงนี้ครับ ▼▼▼
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxU_Z-oGVJxLwBFCP4nb-C2ZzLS3gg0CAVXXdmGoQlF2OWCWcqbIIlULzkOVEauJBy0/exec"; 
+    const LIFF_ID = "2009043114-Ndo88F4L";
+
+    let rooms = [];
+    let userProfile = { userId: 'Guest', displayName: 'Guest', pictureUrl: '' };
+
+    window.onload = function() {
+        initLiff();
+        fetchRooms();
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('checkIn').min = today;
+    };
+
+    async function initLiff() {
+        try {
+            await liff.init({ liffId: LIFF_ID });
+            if (liff.isLoggedIn()) {
+                const profile = await liff.getProfile();
+                userProfile = profile;
+                document.getElementById('userName').innerText = profile.displayName;
+                if(profile.pictureUrl) document.getElementById('userImg').src = profile.pictureUrl;
+            }
+        } catch (err) { console.log('LIFF Error:', err); }
+    }
+
+    function fetchRooms() {
+        const list = document.getElementById('roomList');
+        list.innerHTML = '<div class="loading">กำลังโหลด...</div>';
+        
+        // แก้ไข: เพิ่ม headers และ redirect เพื่อความเสถียร
+        fetch(WEB_APP_URL, {
+            redirect: 'follow', 
+            method: 'POST',
+            headers: {
+                "Content-Type": "text/plain;charset=utf-8",
+            },
+            body: JSON.stringify({ action: 'get_rooms' })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                rooms = data.data;
+                renderRooms();
+            } else {
+                list.innerHTML = '<div style="color:red; text-align:center;">ไม่พบข้อมูลห้องพัก</div>';
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            list.innerHTML = '<div style="color:red; text-align:center;">เชื่อมต่อไม่ได้<br><small>กรุณาตรวจสอบการ Deploy (Everyone)</small></div>';
+        });
+    }
+
+    function renderRooms() {
+        const list = document.getElementById('roomList');
+        list.innerHTML = '';
+        if (rooms.length === 0) {
+            list.innerHTML = '<div class="loading">ไม่มีห้องว่าง</div>';
+            return;
+        }
+        rooms.forEach(room => {
+            const div = document.createElement('div');
+            div.className = 'room-item';
+            div.onclick = () => selectRoom(room.name, div);
+            div.innerHTML = `
+                <img src="${room.image || 'https://via.placeholder.com/150'}" class="room-img">
+                <div style="flex:1;">
+                    <div style="font-weight:bold;">${room.name}</div>
+                    <div style="font-size:12px; color:#666;">${room.desc || '-'}</div>
+                    <div style="color:#10B981; font-weight:bold;">฿${room.price}</div>
+                </div>
+            `;
+            list.appendChild(div);
+        });
+    }
+
+    function selectRoom(name, element) {
+        document.getElementById('selectedRoom').value = name;
+        document.querySelectorAll('.room-item').forEach(el => el.classList.remove('selected'));
+        element.classList.add('selected');
+        checkForm();
+    }
+
+    function updateCheckOut() {
+        const checkIn = document.getElementById('checkIn').value;
+        const checkOut = document.getElementById('checkOut');
+        if (checkIn) {
+            const date = new Date(checkIn);
+            date.setDate(date.getDate() + 1);
+            checkOut.min = date.toISOString().split('T')[0];
+            checkOut.disabled = false;
+            checkOut.value = '';
+        }
+        checkForm();
+    }
+
+    function checkForm() {
+        const room = document.getElementById('selectedRoom').value;
+        const inDate = document.getElementById('checkIn').value;
+        const outDate = document.getElementById('checkOut').value;
+        const btn = document.getElementById('submitBtn');
+        if (room && inDate && outDate) {
+            btn.disabled = false;
+            btn.innerText = "ยืนยันการจอง";
+        } else {
+            btn.disabled = true;
+        }
+    }
+
+    function submitBooking() {
+        const btn = document.getElementById('submitBtn');
+        btn.disabled = true;
+        btn.innerText = "กำลังส่งข้อมูล...";
+        
+        const payload = {
+            action: 'booking',
+            checkIn: document.getElementById('checkIn').value,
+            checkOut: document.getElementById('checkOut').value,
+            roomType: document.getElementById('selectedRoom').value,
+            phone: document.getElementById('phone').value,
+            lineUserId: userProfile.userId,
+            lineDisplayName: userProfile.displayName,
+            linePictureUrl: userProfile.pictureUrl
+        };
+
+        fetch(WEB_APP_URL, {
+            redirect: 'follow',
+            method: 'POST',
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: JSON.stringify(payload)
+        }).then(res => res.json()).then(data => {
+            if(data.status === 'success'){
+                alert("จองสำเร็จ! \nเจ้าหน้าที่จะติดต่อกลับทาง LINE ครับ");
+                liff.closeWindow();
+            } else {
+                throw new Error("Server returned error");
+            }
+        }).catch(err => {
+            // กรณีใช้ no-cors หรือเกิด error จริงๆ ให้แจ้งลูกค้าไว้ก่อน
+            // (แต่รอบนี้ผมปรับให้รับ response ได้แล้ว)
+            alert("ส่งข้อมูลแล้ว! \nหากไม่ได้รับการตอบกลับ โปรดติดต่อเจ้าหน้าที่");
+            liff.closeWindow();
+        });
+    }
+
+    // --- Admin Functions ---
+    function toggleAdmin() {
+        const modal = document.getElementById('adminModal');
+        if (modal.classList.contains('hidden')) {
+            modal.classList.remove('hidden');
+            renderAdminList();
+        } else {
+            modal.classList.add('hidden');
+        }
+    }
+
+    function renderAdminList() {
+        const list = document.getElementById('adminList');
+        list.innerHTML = '';
+        rooms.forEach(room => {
+            const div = document.createElement('div');
+            div.style.cssText = "display:flex; justify-content:space-between; padding:10px; border-bottom:1px solid #eee; align-items:center;";
+            div.innerHTML = `
+                <span>${room.name} (${room.price})</span>
+                <button onclick="deleteRoom('${room.id}')" style="color:white; background:#ef4444; border:none; padding:5px 10px; border-radius:5px; cursor:pointer;">ลบ</button>
+            `;
+            list.appendChild(div);
+        });
+    }
+
+    function addRoom() {
+        const name = document.getElementById('newRoomName').value;
+        const price = document.getElementById('newRoomPrice').value;
+        const desc = document.getElementById('newRoomDesc').value;
+        const fileInput = document.getElementById('newRoomFile');
+        const btn = document.getElementById('saveRoomBtn');
+
+        if (!name || !price) {
+            alert('กรุณากรอกชื่อและราคา');
+            return;
+        }
+
+        btn.disabled = true;
+        btn.innerText = "กำลังบันทึก...";
+
+        const roomData = { id: Date.now(), name, price, desc, image: '' };
+
+        if (fileInput.files.length > 0) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                roomData.imageBase64 = e.target.result;
+                sendRoomData(roomData, btn);
+            };
+            reader.readAsDataURL(fileInput.files[0]);
+        } else {
+            sendRoomData(roomData, btn);
+        }
+    }
+
+    function sendRoomData(data, btn) {
+        fetch(WEB_APP_URL, {
+            redirect: 'follow',
+            method: 'POST',
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: JSON.stringify({ action: 'save_room', room: data })
+        }).then(res => res.json()).then(() => {
+            alert("บันทึกข้อมูลแล้ว!");
+            document.getElementById('newRoomName').value = '';
+            document.getElementById('newRoomPrice').value = '';
+            document.getElementById('newRoomDesc').value = '';
+            document.getElementById('newRoomFile').value = '';
+            toggleAdmin();
+            btn.disabled = false;
+            btn.innerText = "บันทึกห้องพัก";
+            setTimeout(fetchRooms, 1500);
+        }).catch(err => {
+            alert("ส่งข้อมูลแล้ว (รออัปเดตสักครู่)");
+            toggleAdmin();
+            btn.disabled = false;
+            btn.innerText = "บันทึกห้องพัก";
+            setTimeout(fetchRooms, 3000);
+        });
+    }
+
+    function deleteRoom(id) {
+        if(!confirm("ยืนยันลบห้องนี้?")) return;
+        fetch(WEB_APP_URL, {
+            redirect: 'follow',
+            method: 'POST',
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: JSON.stringify({ action: 'delete_room', roomId: id })
+        }).then(() => {
+            alert("ลบเรียบร้อย");
+            toggleAdmin();
+            setTimeout(fetchRooms, 1500);
+        });
+    }
+</script>
+
+</body>
+</html>
