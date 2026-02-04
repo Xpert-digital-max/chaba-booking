@@ -9,23 +9,34 @@
     <style>
         body { font-family: sans-serif; background-color: #f3f4f6; margin: 0; padding-bottom: 50px; }
         .container { max-width: 450px; margin: 0 auto; background: white; min-height: 100vh; position: relative; }
+        
+        /* Header */
         .header { height: 200px; background-color: #333; position: relative; overflow: hidden; }
         .header img { width: 100%; height: 100%; object-fit: cover; opacity: 0.8; }
         .header-text { position: absolute; bottom: 20px; left: 20px; color: white; text-shadow: 1px 1px 4px rgba(0,0,0,0.5); }
-        .content { padding: 20px; border-radius: 20px 20px 0 0; background: white; margin-top: -20px; position: relative; }
+        .admin-btn { position: absolute; top: 10px; right: 10px; background: rgba(255,255,255,0.8); border: none; border-radius: 50%; width: 40px; height: 40px; font-size: 20px; cursor: pointer; z-index: 10; display: flex; align-items: center; justify-content: center; }
+
+        /* Content */
+        .content { padding: 20px; border-radius: 20px 20px 0 0; background: white; margin-top: -20px; position: relative; z-index: 5; }
         .form-group { margin-bottom: 15px; }
         .label { display: block; font-weight: bold; margin-bottom: 5px; color: #374151; }
         .input-box { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
         .btn { width: 100%; padding: 15px; background-color: #10B981; color: white; border: none; border-radius: 10px; font-size: 18px; font-weight: bold; cursor: pointer; }
         .btn:disabled { background-color: #ccc; }
-        .room-item { border: 2px solid #eee; border-radius: 10px; padding: 10px; margin-bottom: 10px; display: flex; align-items: center; cursor: pointer; }
+        
+        /* Room Item */
+        .room-item { border: 2px solid #eee; border-radius: 10px; padding: 10px; margin-bottom: 10px; display: flex; align-items: center; cursor: pointer; transition: all 0.2s; }
         .room-item.selected { border-color: #10B981; background-color: #ecfdf5; }
         .room-img { width: 80px; height: 80px; background-color: #ddd; border-radius: 5px; object-fit: cover; margin-right: 15px; }
-        .hidden { display: none; }
+        
+        /* Utility */
         .loading { text-align: center; color: #666; margin-top: 20px; }
-        /* Admin Modal */
-        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; items-center; z-index: 1000; }
-        .modal-content { background: white; width: 90%; max-width: 400px; padding: 20px; border-radius: 10px; max-height: 80vh; overflow-y: auto; }
+        
+        /* --- แก้ไข CSS ส่วน Modal --- */
+        .hidden { display: none !important; } /* บังคับซ่อน */
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 9999; }
+        .modal-content { background: white; width: 90%; max-width: 400px; padding: 20px; border-radius: 15px; max-height: 85vh; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.2); position: relative; }
+        .close-modal { position: absolute; top: 10px; right: 15px; font-size: 28px; background: none; border: none; cursor: pointer; color: #666; }
     </style>
 </head>
 <body>
@@ -37,7 +48,7 @@
             <h1 style="margin:0; font-size:24px;">Chaba Resort</h1>
             <p style="margin:5px 0 0 0;">📍 จันทบุรี</p>
         </div>
-        <button onclick="toggleAdmin()" style="position:absolute; top:10px; right:10px; background:rgba(255,255,255,0.3); border:none; border-radius:50%; padding:8px; cursor:pointer;">⚙️</button>
+        <button onclick="toggleAdmin()" class="admin-btn">⚙️</button>
     </div>
 
     <div class="content">
@@ -58,9 +69,9 @@
         </div>
 
         <div class="form-group">
-            <div style="display:flex; justify-content:space-between;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
                 <label class="label">🏡 เลือกห้องพัก</label>
-                <a href="#" onclick="fetchRooms(); return false;" style="color:#10B981; font-size:12px;">รีเฟรช</a>
+                <a href="#" onclick="fetchRooms(); return false;" style="color:#10B981; font-size:12px; text-decoration:none;">🔄 รีเฟรช</a>
             </div>
             <div id="roomList">
                 <div class="loading">กำลังโหลดข้อมูลห้องพัก...</div>
@@ -79,37 +90,36 @@
 
 <div id="adminModal" class="hidden modal">
     <div class="modal-content">
-        <div style="display:flex; justify-content:space-between; margin-bottom:15px;">
-            <h3 style="margin:0;">จัดการห้องพัก</h3>
-            <button onclick="toggleAdmin()" style="border:none; background:none; font-size:20px;">&times;</button>
-        </div>
-        <div id="adminList"></div>
-        <div style="margin-top:20px; padding-top:20px; border-top:1px solid #eee;">
-            <h4>เพิ่มห้องใหม่</h4>
+        <button onclick="toggleAdmin()" class="close-modal">&times;</button>
+        <h2 style="margin-top:0; border-bottom:1px solid #eee; padding-bottom:10px;">จัดการห้องพัก</h2>
+        
+        <div id="adminList" style="margin-bottom:20px;"></div>
+        
+        <div style="background:#f9fafb; padding:15px; border-radius:10px; border:1px solid #eee;">
+            <h4 style="margin-top:0;">เพิ่มห้องใหม่</h4>
             <input id="newRoomName" class="input-box" placeholder="ชื่อห้อง" style="margin-bottom:10px;">
-            <input id="newRoomPrice" class="input-box" placeholder="ราคา" style="margin-bottom:10px;">
+            <input id="newRoomPrice" class="input-box" placeholder="ราคา (บาท)" type="number" style="margin-bottom:10px;">
             <input id="newRoomDesc" class="input-box" placeholder="รายละเอียด" style="margin-bottom:10px;">
-            <label style="font-size:12px;">รูปภาพ:</label>
-            <input type="file" id="newRoomFile" style="margin-bottom:10px;">
-            <button class="btn" onclick="addRoom()">บันทึกห้องพัก</button>
+            
+            <label style="font-size:12px; font-weight:bold; margin-bottom:5px; display:block;">รูปภาพห้องพัก:</label>
+            <input type="file" id="newRoomFile" style="margin-bottom:15px; width:100%;">
+            
+            <button id="saveRoomBtn" class="btn" style="font-size:16px; padding:10px;" onclick="addRoom()">บันทึกห้องพัก</button>
         </div>
     </div>
 </div>
 
 <script>
-    // ▼▼▼ แก้ไขลิ้งค์ตรงนี้ ▼▼▼
+    // ▼▼▼ ใส่ลิ้งค์ของคุณตรงนี้ ▼▼▼
     const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxU_Z-oGVJxLwBFCP4nb-C2ZzLS3gg0CAVXXdmGoQlF2OWCWcqbIIlULzkOVEauJBy0/exec"; 
     const LIFF_ID = "2009043114-Ndo88F4L";
 
     let rooms = [];
     let userProfile = { userId: 'Guest', displayName: 'Guest', pictureUrl: '' };
 
-    // เริ่มทำงานทันที
     window.onload = function() {
         initLiff();
         fetchRooms();
-        
-        // ตั้งวันที่ขั้นต่ำเป็นวันนี้
         const today = new Date().toISOString().split('T')[0];
         document.getElementById('checkIn').min = today;
     };
@@ -122,33 +132,29 @@
                 userProfile = profile;
                 document.getElementById('userName').innerText = profile.displayName;
                 if(profile.pictureUrl) document.getElementById('userImg').src = profile.pictureUrl;
-            } else {
-                // liff.login();
             }
-        } catch (err) {
-            console.log('LIFF Error:', err);
-        }
+        } catch (err) { console.log('LIFF Error:', err); }
     }
 
     function fetchRooms() {
-        document.getElementById('roomList').innerHTML = '<div class="loading">กำลังโหลด...</div>';
+        const list = document.getElementById('roomList');
+        list.innerHTML = '<div class="loading">กำลังโหลด...</div>';
         
-        // ใช้ POST เพื่อแก้ปัญหา Cache
         fetch(WEB_APP_URL, {
             method: 'POST',
             body: JSON.stringify({ action: 'get_rooms' })
         })
-        .then(response => response.json())
-        .then(result => {
-            if (result.status === 'success') {
-                rooms = result.data;
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                rooms = data.data;
                 renderRooms();
             } else {
-                alert('โหลดข้อมูลไม่สำเร็จ: ' + result.message);
+                list.innerHTML = '<div style="color:red; text-align:center;">โหลดข้อมูลไม่ได้</div>';
             }
         })
-        .catch(error => {
-            document.getElementById('roomList').innerHTML = '<div style="color:red; text-align:center;">โหลดข้อมูลล้มเหลว<br>เช็คว่า Deploy เป็น Anyone หรือยัง?</div>';
+        .catch(err => {
+            list.innerHTML = '<div style="color:red; text-align:center;">เชื่อมต่อไม่ได้<br>เช็ค URL หรือ Deploy ใหม่</div>';
         });
     }
 
@@ -159,7 +165,6 @@
             list.innerHTML = '<div class="loading">ไม่มีห้องว่าง</div>';
             return;
         }
-        
         rooms.forEach(room => {
             const div = document.createElement('div');
             div.className = 'room-item';
@@ -185,31 +190,27 @@
 
     function updateCheckOut() {
         const checkIn = document.getElementById('checkIn').value;
-        const checkOutInput = document.getElementById('checkOut');
-        
+        const checkOut = document.getElementById('checkOut');
         if (checkIn) {
             const date = new Date(checkIn);
             date.setDate(date.getDate() + 1);
-            const minDate = date.toISOString().split('T')[0];
-            checkOutInput.min = minDate;
-            checkOutInput.value = ''; // รีเซ็ตค่าเก่า
-            checkOutInput.disabled = false;
+            checkOut.min = date.toISOString().split('T')[0];
+            checkOut.disabled = false;
+            checkOut.value = '';
         }
         checkForm();
     }
 
     function checkForm() {
         const room = document.getElementById('selectedRoom').value;
-        const checkIn = document.getElementById('checkIn').value;
-        const checkOut = document.getElementById('checkOut').value;
+        const inDate = document.getElementById('checkIn').value;
+        const outDate = document.getElementById('checkOut').value;
         const btn = document.getElementById('submitBtn');
-        
-        if (room && checkIn && checkOut) {
+        if (room && inDate && outDate) {
             btn.disabled = false;
             btn.innerText = "ยืนยันการจอง";
         } else {
             btn.disabled = true;
-            btn.innerText = "กรุณากรอกข้อมูลให้ครบ";
         }
     }
 
@@ -217,7 +218,7 @@
         const btn = document.getElementById('submitBtn');
         btn.disabled = true;
         btn.innerText = "กำลังส่งข้อมูล...";
-
+        
         const payload = {
             action: 'booking',
             checkIn: document.getElementById('checkIn').value,
@@ -229,14 +230,12 @@
             linePictureUrl: userProfile.pictureUrl
         };
 
-        // ส่งแบบ no-cors (Fire & Forget) เพื่อความเร็วและชัวร์
         fetch(WEB_APP_URL, {
             method: 'POST',
             mode: 'no-cors',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         }).then(() => {
-            alert("จองสำเร็จ! \nกรุณารอการยืนยันทาง LINE");
+            alert("จองสำเร็จ! \nเจ้าหน้าที่จะติดต่อกลับทาง LINE ครับ");
             liff.closeWindow();
         }).catch(err => {
             alert("เกิดข้อผิดพลาด: " + err);
@@ -245,12 +244,15 @@
         });
     }
 
-    // --- Admin Logic ---
+    // --- Admin Functions ---
     function toggleAdmin() {
         const modal = document.getElementById('adminModal');
-        modal.classList.toggle('hidden');
-        if (!modal.classList.contains('hidden')) {
+        // ใช้ classList.toggle เพื่อสลับ class hidden
+        if (modal.classList.contains('hidden')) {
+            modal.classList.remove('hidden');
             renderAdminList();
+        } else {
+            modal.classList.add('hidden');
         }
     }
 
@@ -258,12 +260,13 @@
         const list = document.getElementById('adminList');
         list.innerHTML = '';
         rooms.forEach(room => {
-            list.innerHTML += `
-                <div style="display:flex; justify-content:space-between; padding:10px; border-bottom:1px solid #eee;">
-                    <span>${room.name}</span>
-                    <button onclick="deleteRoom('${room.id}')" style="color:red; border:none; background:none;">ลบ</button>
-                </div>
+            const div = document.createElement('div');
+            div.style.cssText = "display:flex; justify-content:space-between; padding:10px; border-bottom:1px solid #eee; align-items:center;";
+            div.innerHTML = `
+                <span>${room.name} (${room.price})</span>
+                <button onclick="deleteRoom('${room.id}')" style="color:white; background:#ef4444; border:none; padding:5px 10px; border-radius:5px; cursor:pointer;">ลบ</button>
             `;
+            list.appendChild(div);
         });
     }
 
@@ -272,51 +275,66 @@
         const price = document.getElementById('newRoomPrice').value;
         const desc = document.getElementById('newRoomDesc').value;
         const fileInput = document.getElementById('newRoomFile');
+        const btn = document.getElementById('saveRoomBtn');
 
         if (!name || !price) {
-            alert('กรุณาใส่ชื่อและราคา');
+            alert('กรุณากรอกชื่อและราคา');
             return;
         }
 
+        btn.disabled = true;
+        btn.innerText = "กำลังบันทึก...";
+
         const roomData = { id: Date.now(), name, price, desc, image: '' };
-        
-        // ถ้ามีรูป
+
         if (fileInput.files.length > 0) {
             const reader = new FileReader();
             reader.onload = function(e) {
                 roomData.imageBase64 = e.target.result;
-                sendRoomData(roomData);
+                sendRoomData(roomData, btn);
             };
             reader.readAsDataURL(fileInput.files[0]);
         } else {
-            sendRoomData(roomData);
+            sendRoomData(roomData, btn);
         }
     }
 
-    function sendRoomData(data) {
-        alert("กำลังบันทึก... (กรุณารอสักครู่)");
+    function sendRoomData(data, btn) {
+        // ใช้ no-cors แต่ถ้า URL ผิด ข้อมูลก็จะไม่ไป
         fetch(WEB_APP_URL, {
             method: 'POST',
             mode: 'no-cors',
             body: JSON.stringify({ action: 'save_room', room: data })
         }).then(() => {
-            alert("บันทึกแล้ว!");
-            toggleAdmin();
-            // รอแป๊บแล้วโหลดใหม่
-            setTimeout(fetchRooms, 2000); 
+            alert("บันทึกข้อมูลแล้ว!");
+            // รีเซ็ตฟอร์ม
+            document.getElementById('newRoomName').value = '';
+            document.getElementById('newRoomPrice').value = '';
+            document.getElementById('newRoomDesc').value = '';
+            document.getElementById('newRoomFile').value = '';
+            
+            toggleAdmin(); // ปิด Modal
+            btn.disabled = false;
+            btn.innerText = "บันทึกห้องพัก";
+            
+            setTimeout(fetchRooms, 1500); // โหลดห้องใหม่
+        }).catch(err => {
+            alert("บันทึกไม่สำเร็จ: " + err);
+            btn.disabled = false;
+            btn.innerText = "บันทึกห้องพัก";
         });
     }
 
     function deleteRoom(id) {
-        if(!confirm("ยืนยันลบ?")) return;
+        if(!confirm("ยืนยันลบห้องนี้?")) return;
         fetch(WEB_APP_URL, {
             method: 'POST',
             mode: 'no-cors',
             body: JSON.stringify({ action: 'delete_room', roomId: id })
         }).then(() => {
-            alert("ลบแล้ว");
+            alert("ลบเรียบร้อย");
             toggleAdmin();
-            setTimeout(fetchRooms, 1000);
+            setTimeout(fetchRooms, 1500);
         });
     }
 </script>
