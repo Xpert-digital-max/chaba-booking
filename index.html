@@ -9,6 +9,22 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    
+    <script>
+        window.onerror = function(message, source, lineno, colno, error) {
+            document.body.innerHTML = `
+                <div style="padding:20px; background:white; color:red; font-family:sans-serif;">
+                    <h2 style="font-size:24px; margin-bottom:10px;">❌ เกิดข้อผิดพลาดร้ายแรง</h2>
+                    <p style="font-size:16px; font-weight:bold;">${message}</p>
+                    <p>ที่บรรทัด: ${lineno}</p>
+                    <hr style="margin:10px 0;">
+                    <p style="color:gray; font-size:12px;">แคปหน้านี้ส่งให้โปรแกรมเมอร์ดูครับ</p>
+                </div>
+            `;
+            return true;
+        };
+    </script>
+
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600&display=swap');
         body { font-family: 'Prompt', sans-serif; background-color: #F3F4F6; }
@@ -19,7 +35,7 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        // ▼▼▼ ใส่ค่า Config ใหม่ของคุณที่นี่ ▼▼▼
+        // ▼▼▼ ตั้งค่าระบบ (ใส่ URL ที่ Deploy แบบ "Anyone" แล้วเท่านั้น) ▼▼▼
         const CONFIG = {
             LIFF_ID: "2009043114-Ndo88F4L",        
             WEB_APP_URL: "https://script.google.com/macros/s/AKfycbxU_Z-oGVJxLwBFCP4nb-C2ZzLS3gg0CAVXXdmGoQlF2OWCWcqbIIlULzkOVEauJBy0/exec" 
@@ -54,33 +70,30 @@
             const [editingRoom, setEditingRoom] = useState(null);
             const [user, setUser] = useState({ userId: 'Guest', displayName: 'ลูกค้าทั่วไป', pictureUrl: '' });
             
-            // State สำหรับวันที่
             const today = new Date().toISOString().split('T')[0];
             const [minCheckOut, setMinCheckOut] = useState('');
             const [form, setForm] = useState({ checkIn: '', checkOut: '', roomType: '', phone: '' });
 
             useEffect(() => {
                 const init = async () => {
-                    if (window.liff) {
-                        try {
+                    try {
+                        if (window.liff) {
                             await liff.init({ liffId: CONFIG.LIFF_ID });
                             if (liff.isLoggedIn()) {
                                 const profile = await liff.getProfile();
                                 setUser(profile);
                             }
-                        } catch(e) { console.error("LIFF Error", e); }
-                    }
+                        }
+                    } catch(e) { console.warn("LIFF not ready", e); }
+                    
                     await fetchRooms();
                 };
                 init();
             }, []);
 
-            // จัดการวันที่ Check-in เปลี่ยน -> Check-out ต้องเริ่มวันถัดไป
             const handleCheckInChange = (e) => {
                 const date = e.target.value;
-                setForm(prev => ({ ...prev, checkIn: date, checkOut: '' })); // เคลียร์ Check-out เดิม
-                
-                // คำนวณวันถัดไป
+                setForm(prev => ({ ...prev, checkIn: date, checkOut: '' })); 
                 const nextDay = new Date(date);
                 nextDay.setDate(nextDay.getDate() + 1);
                 setMinCheckOut(nextDay.toISOString().split('T')[0]);
@@ -100,14 +113,30 @@
             const fetchRooms = async () => {
                 try {
                     setLoading(true);
+                    // ใช้ POST เสมอ เพื่อแก้ปัญหา Caching
                     const res = await fetch(CONFIG.WEB_APP_URL, {
                         method: "POST",
                         body: JSON.stringify({ action: "get_rooms" })
                     });
-                    const result = await res.json();
-                    if (result.status === 'success') setRooms(result.data);
+                    
+                    const text = await res.text(); // อ่านเป็น Text ก่อนเพื่อเช็คว่าไม่ใช่ HTML Error
+                    let result;
+                    try {
+                        result = JSON.parse(text);
+                    } catch (jsonError) {
+                        throw new Error("ลิ้งค์ Deploy ผิด! (ตั้งค่าสิทธิ์เข้าถึงเป็น Everyone หรือยัง?)\n" + text.substring(0, 50) + "...");
+                    }
+
+                    if (result.status === 'success') {
+                        setRooms(result.data || []);
+                    } else {
+                        throw new Error(result.message || "Unknown error from server");
+                    }
                 } catch (e) {
-                    setRooms([{ id: '1', name: 'Error Connect', price: '0', image: '', desc: 'เชื่อมต่อไม่ได้' }]);
+                    // ไม่ให้จอขาว แต่แสดง Error แทน
+                    console.error(e);
+                    alert("โหลดข้อมูลไม่ได้: " + e.message);
+                    setRooms([{ id: 'error', name: 'โหลดข้อมูลล้มเหลว', price: '0', image: '', desc: e.message }]);
                 } finally {
                     setLoading(false);
                 }
@@ -124,20 +153,19 @@
                         body: JSON.stringify({ action: "booking", ...form, lineUserId: user.userId, lineDisplayName: user.displayName, linePictureUrl: user.pictureUrl })
                     });
                     setTimeout(() => { setStep(2); setSubmitting(false); }, 1500);
-                } catch (e) { alert("เกิดข้อผิดพลาด"); setSubmitting(false); }
+                } catch (e) { alert("เกิดข้อผิดพลาด: " + e.message); setSubmitting(false); }
             };
 
             const saveRoom = async () => {
                 setSubmitting(true);
-                // ถ้าเป็น Local Update ให้แสดงเลย (แต่รูปจะยังไม่มาจนกว่าจะโหลดเสร็จ)
                 const newRooms = rooms.some(r => r.id === editingRoom.id) ? rooms.map(r => r.id === editingRoom.id ? editingRoom : r) : [...rooms, editingRoom];
                 setRooms(newRooms);
                 
                 await fetch(CONFIG.WEB_APP_URL, { method: "POST", mode: "no-cors", body: JSON.stringify({ action: "save_room", room: editingRoom }) });
                 setEditingRoom(null);
                 setSubmitting(false);
-                alert("บันทึกแล้ว (รูปอาจใช้เวลาอัปโหลดสักครู่)");
-                fetchRooms(); // โหลดใหม่เพื่อเอารูปจริง
+                alert("บันทึกแล้ว กรุณารอสักครู่ระบบกำลังอัปโหลดรูป");
+                // ไม่ fetchRooms ทันทีเพื่อให้ UI ลื่นไหล
             };
 
             const deleteRoom = (id) => {
@@ -177,11 +205,8 @@
                             <div className="space-y-3">
                                 <label className="flex items-center gap-2 text-gray-700 font-bold"><Icon path={Icons.Calendar} className="w-5 h-5 text-green-600"/> วันที่เข้าพัก</label>
                                 <div className="grid grid-cols-2 gap-3">
-                                    {/* วันที่เช็คอิน: ห้ามเลือกย้อนหลัง (min={today}) */}
                                     <input type="date" required min={today} className="bg-gray-50 border rounded-lg p-2.5 w-full" 
                                         value={form.checkIn} onChange={handleCheckInChange} />
-                                    
-                                    {/* วันที่เช็คเอาท์: ต้องหลังจากเช็คอิน (min={minCheckOut}) */}
                                     <input type="date" required min={minCheckOut} disabled={!form.checkIn} className="bg-gray-50 border rounded-lg p-2.5 w-full disabled:bg-gray-200" 
                                         value={form.checkOut} onChange={e => setForm({...form, checkOut: e.target.value})} />
                                 </div>
@@ -189,13 +214,14 @@
 
                             <div className="space-y-3">
                                 <div className="flex justify-between"><label className="flex items-center gap-2 text-gray-700 font-bold"><Icon path={Icons.Home} className="w-5 h-5 text-green-600"/> เลือกห้องพัก</label><button type="button" onClick={fetchRooms} className="text-xs text-green-600">รีเฟรช</button></div>
-                                {loading ? <div className="text-center py-4 text-gray-400">กำลังโหลดข้อมูล...</div> : 
+                                {loading ? <div className="text-center py-4 text-gray-400"><Icon path={Icons.Loader2} className="w-6 h-6 animate-spin mx-auto"/> กำลังโหลดข้อมูล...</div> : 
                                     <div className="space-y-3">
                                         {rooms.map(room => (
                                             <div key={room.id} onClick={() => setForm({...form, roomType: room.name})} className={`flex border rounded-xl overflow-hidden cursor-pointer ${form.roomType === room.name ? 'border-green-500 bg-green-50 ring-1 ring-green-500' : 'border-gray-200'}`}>
                                                 <img src={room.image || 'https://via.placeholder.com/150'} className="w-24 h-24 object-cover bg-gray-200" />
                                                 <div className="p-3 flex-1 flex flex-col justify-center">
                                                     <h4 className="font-bold text-gray-800">{room.name}</h4>
+                                                    <div className="text-sm text-gray-500 line-clamp-2">{room.desc}</div>
                                                     <div className="text-green-600 font-bold mt-1">฿{room.price}</div>
                                                 </div>
                                             </div>
@@ -209,56 +235,4 @@
                                 <input type="tel" required placeholder="08x-xxx-xxxx" className="w-full bg-gray-50 border rounded-lg p-3" onChange={e => setForm({...form, phone: e.target.value})} />
                             </div>
 
-                            <button type="submit" disabled={submitting || !form.roomType} className={`w-full py-4 rounded-xl font-bold text-white shadow-lg flex justify-center gap-2 ${submitting ? 'bg-gray-400' : 'bg-green-600'}`}>
-                                {submitting ? 'กำลังส่งข้อมูล...' : 'ยืนยันการจอง'}
-                            </button>
-                        </form>
-                    </div>
-
-                    {showAdmin && (
-                        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-                            <div className="bg-white w-full max-w-lg rounded-xl h-[80vh] flex flex-col p-4">
-                                <div className="flex justify-between mb-4"><h2 className="font-bold">จัดการห้องพัก</h2><button onClick={() => setShowAdmin(false)}><Icon path={Icons.X} className="w-6 h-6"/></button></div>
-                                <div className="overflow-y-auto flex-1 space-y-3">
-                                    {!editingRoom ? (
-                                        <>
-                                            {rooms.map(r => (
-                                                <div key={r.id} className="flex justify-between border p-2 rounded items-center">
-                                                    <div>{r.name}</div>
-                                                    <div className="flex gap-2"><button onClick={() => setEditingRoom(r)} className="text-blue-500"><Icon path={Icons.Settings} className="w-5 h-5"/></button><button onClick={() => deleteRoom(r.id)} className="text-red-500"><Icon path={Icons.Trash2} className="w-5 h-5"/></button></div>
-                                                </div>
-                                            ))}
-                                            <button onClick={() => setEditingRoom({id:Date.now(),name:'',price:'',image:'',desc:''})} className="w-full border-2 border-dashed p-3 text-gray-400 rounded-xl">+ เพิ่มห้อง</button>
-                                        </>
-                                    ) : (
-                                        <div className="space-y-3">
-                                            <input className="border p-2 w-full rounded" placeholder="ชื่อห้อง" value={editingRoom.name} onChange={e=>setEditingRoom({...editingRoom,name:e.target.value})}/>
-                                            <input className="border p-2 w-full rounded" placeholder="ราคา" value={editingRoom.price} onChange={e=>setEditingRoom({...editingRoom,price:e.target.value})}/>
-                                            
-                                            {/* ปุ่มอัปโหลดรูปภาพ */}
-                                            <div className="border p-2 w-full rounded bg-gray-50">
-                                                <label className="text-xs text-gray-500 mb-1 block">รูปห้องพัก</label>
-                                                <input type="file" accept="image/*" onChange={handleFileChange} />
-                                                {editingRoom.imageBase64 && <img src={editingRoom.imageBase64} className="h-20 mt-2 object-cover rounded" />}
-                                                {editingRoom.image && !editingRoom.imageBase64 && <img src={editingRoom.image} className="h-20 mt-2 object-cover rounded" />}
-                                            </div>
-
-                                            <div className="flex gap-2">
-                                                <button onClick={saveRoom} disabled={submitting} className="bg-green-600 text-white flex-1 py-2 rounded">{submitting ? 'กำลังอัปโหลด...' : 'บันทึก'}</button>
-                                                <button onClick={()=>setEditingRoom(null)} className="bg-gray-200 flex-1 py-2 rounded">ยกเลิก</button>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            );
-        };
-
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
-    </script>
-</body>
-</html>
+                            <button type="submit" disabled={submitting || !form.roomType} className={`w-full py-4 rounded-xl font-bold text-white shadow-lg flex justify-center gap-2 ${sub
